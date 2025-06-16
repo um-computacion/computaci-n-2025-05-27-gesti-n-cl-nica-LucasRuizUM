@@ -1,187 +1,99 @@
-import unittest
+
 from datetime import datetime
-from typing import List, Dict
+from src.paciente import Paciente
+from src.medico import Medico
+from src.turno import Turno
+from src.receta import Receta
+from src.especialidad import Especialidad
+from src.historia_clinica import HistoriaClinica
+from src.excepciones import (
+    PacienteYaExiste,
+    MedicoYaExisteError,
+    PacienteNoExisteError,
+    MedicoNoExisteError,
+    TurnoDuplicadoError,
+    RecetaInvalidaError,
+    EspecialidadNoDisponibleError
+)
 
-class ErrorPacienteNoExiste(Exception):
-    pass
-class ErrorPacienteExistente(Exception):
-    pass
-class ErrorMedicoNoExiste(Exception):
-    pass
-class ErrorMedicoExistente(Exception):
-    pass
-class ErrorTurnoDuplicado(Exception):
-    pass
+class Clinica:
+    def __init__(self):
+        self.__pacientes__: dict[str, Paciente] = {}
+        self.__medicos__: dict[str, Medico] = {}
+        self.__turnos__: list[Turno] = []
+        self.__historias_clinicas__: dict[str, HistoriaClinica] = {}
 
-class Paciente:
-    def __init__(
-            self,
-            dni_paciente:str,
-            nombre_paciente: str,
-            fecha_nacimiento: str,
-    ):
-        
-        self.__dni_=dni_paciente
-        self.__nombre__=nombre_paciente
-        self.__fecha_nacimiento__=fecha_nacimiento
 
-    def obtener_dni(self):
-        return f'El nombre del paciente es: {self.__nombre__}'
-    
-    def set_dni(self, dni_paciente):
-        self.__dni__ = str(dni_paciente)
-    
-    def set_nombre(self, nombre_paciente):
-        self.__nombre__ = nombre_paciente
-    
-    def set_nacimiento(self, fecha_nacimiento):
-        self.__fecha_nacimiento__ = fecha_nacimiento
-        
-    def obtener_nombre(self):
-        return f'El nombre del paciente es: {self.__nombre__}'
-    
-    def obtener_nacimiento(self):
-        return f'La fecha de nacimiento del paciente {self.__nombre__} es: {self.__fecha_nacimiento__}'
-    
-    def obtener_paciente(self) -> str:
-        return f"Paciente: {self.__nombre__} (DNI: {self.__dni__}) - Nacimiento: {self.__fecha_nacimiento__}"
+    def agregar_paciente(self, paciente: Paciente):
+        dni = paciente.obtener_dni()
+        #Validacion de paciente
+        if dni in self.__pacientes__:
+            raise PacienteYaExiste("paciente registrado")
+        self.__pacientes__[dni] = paciente
+        self.__historias_clinicas__[dni] = HistoriaClinica(paciente)
 
-    def __str__(self) -> str:
-        return f"Paciente: {self.__nombre__} (DNI: {self.__dni__}) - Nacimiento: {self.__fecha_nacimiento__}"
+    def agregar_medico(self, medico: Medico):
+        matricula = medico.obtener_matricula()
+        #validacion de medico
+        if matricula in self.__medicos__:
+            raise MedicoYaExisteError("médico registrado")
+        self.__medicos__[matricula] = medico
 
-class Especialidad:
-    def __init__(
-            self,
-            tipo: str,
-            dias: list[str] = None,
-    ):
-        self.__tipo__ = tipo
-        self.__dias__ = dias if dias is not None else []
-        
-    def obtener_especialidad(self) -> str:
-        return f"La especialidad es: {self.__tipo__}"
-    
-    def set_especialidad(self, especialidad):
-        self.__tipo__ = especialidad
-    
-    def set_dias(self, dia):
-        if self.__dias__ is None:
-            self.__dias__ = []
-        self.__dias__.append(dia)
-    
-    def verificar_dia(self, dia: str) -> bool:
-        if not self.__dias__:
-            return False
-            
-        for d in self.__dias__:
-            if d.lower() == dia.lower():
-                return True
-        return False
+    def obtener_pacientes(self):
+        return list(self.__pacientes__.values())
 
-    def __str__(self) -> str:
-        if self.__dias__:
-            dias_str = ", ".join(self.__dias__)
-            return f"Especialidad: {self.__tipo__} - Días disponibles: {dias_str}"
-        else:
-            return f"Especialidad: {self.__tipo__} - Sin días asignados"
+    def obtener_medicos(self):
+        return list(self.__medicos__.values())
 
-class Medico:
-    def __init__(self, matricula_medico: str, nombre_medico: str, especialidad: list[Especialidad]):
-        
-        self.__matricula__ = matricula_medico
-        self.__nombre__ = nombre_medico
-        self.__especialidades__ = especialidad  # Objeto de tipo Especialidad
+    def obtener_medico_por_matricula(self, matricula: str):
+        if matricula not in self.__medicos__:
+            raise MedicoNoExisteError("Médico no encontrado")
+        return self.__medicos__[matricula]
 
-    def obtener_matricula(self):
-        return f'La matrícula del Médico {self.__nombre__} es: {self.__matricula__}'
-    
-    def set_matricula(self, matricula):
-        self.__matricula__ = str(matricula)
-    
-    def set_nombreM(self, nombre_medico):
-        self.__nombre__ = nombre_medico
-    
-    def get_nombre(self):
-        return f'El nombre del Médico es: {self.__nombre__}'
-    
-    def get_especialidad(self, especialidad: Especialidad):
-        """Retorna información de la especialidad del médico"""
-        return f'La especialidad del Médico {self.__nombre__} es: {especialidad.obtener_especialidad()}'
-    
-    def get_especialidad_completa(self):
-        """Retorna información completa de la especialidad incluyendo días"""
-        return f'El Médico {self.__nombre__} - {self.__especialidades__}'
-    
-    def obtener_especialidad_para_dia(self, dia, especialidad: Especialidad)-> str | None:
-        for especialidad in self.__especialidades__:
-            if especialidad.verificar_dia(dia):
-                return especialidad.obtener_especialidad()
-        return None
+    def validar_turno_no_duplicado(self, matricula: str, fecha_hora: datetime, dia_semana: str):
+        for turno in self.__turnos__:
+            if turno.obtener_medico().obtener_matricula() == matricula and turno.obtener_fecha_hora() == fecha_hora and turno.verificar_dia_semana(dia_semana):
+                raise TurnoDuplicadoError("el medico ya no cuenta con disponibilidad en ese turno")
 
-    def __str__(self) -> str:
-        return f"Dr. {self.__nombre__} - {self.__especialidades__} (Matrícula: {self.__matricula__})"
+    def agendar_turno(self, dni: Paciente , matricula: str, fecha_hora: datetime, dia_semana: str):
+        if dni not in self.__pacientes__:
+            raise PacienteNoExisteError("Error: Paciente no encontrado")
+        if matricula not in self.__medicos__:
+            raise MedicoNoExisteError("Médico no encontrado")
 
-class Turno:
-    def __init__(self, paciente: Paciente, medico: Medico, fecha_hora: datetime, especialidad: Especialidad):
-        self.__paciente__ = paciente
-        self.__medico__ = medico
-        self.__fecha_hora__ = fecha_hora
-        self.__especialidad__ = especialidad
-    
-    def obtener_medico(self) -> Medico:
-        return self.__medico__
-    
-    def obtener_fecha_hora(self) -> datetime:
-        return self.__fecha_hora__
-    
-    def __str__(self) -> str:
-        fecha_formateada = self.__fecha_hora__.strftime("%d/%m/%Y %H:%M")
-        return (f"Turno - Paciente: {self.__paciente__}, "
-                f"Médico: {self.__medico__}, "
-                f"Fecha y Hora: {fecha_formateada}, "
-                f"Especialidad: {self.__especialidad__}")
+        medico = self.__medicos__[matricula]
+        especialidad = medico.obtener_especialidad_para_dia(dia_semana)
+        #valida que el medico atienda esa especialidad ese dia 
+        if not especialidad:
+            raise EspecialidadNoDisponibleError("El médico no se encuentra disponible")
 
-class Receta:
-    
-    def __init__(self, paciente: Paciente, medico: Medico, medicamentos: List[str], fecha: datetime = None):
-        self.__paciente__ = paciente
-        self.__medico__ = medico
-        self.__medicamentos__ = medicamentos
-        self.__fecha__ = fecha if fecha else datetime.now()
-    
-    def agregar_medicamentos (self, medicamento):
-        self.__medicamentos__.append(medicamento)
+        self.validar_turno_no_duplicado(matricula, fecha_hora, dia_semana)
 
-    def __str__(self) -> str:
-        fecha_str = self.__fecha__.strftime("%d/%m/%Y")
-        medicamentos_str = ", ".join(self.__medicamentos__)
-        return f"Receta [{fecha_str}]: {medicamentos_str} - Prescrita por {self.__medico__.__nombre__} para {self.__paciente__.__nombre__}"
-
-class HistoriaClinica():
-    def __init__(
-        self,
-        paciente: Paciente,
-    ):
-        self.__paciente__ = paciente
-        self.__turnos__: List[Turno] = []
-        self.__recetas__: List[Receta] = []
-
-    def agregar_turno_a_lista(self, turno : Turno):
+        turno = Turno(self.__pacientes__[dni], medico, fecha_hora, especialidad, dia_semana)
         self.__turnos__.append(turno)
-    
-    def agregar_receta_hist(self, receta : Receta):
-        self.__recetas__.append(receta)
-    
+        self.__historias_clinicas__[dni].agregar_turno(turno)
+        return turno
+
+    def emitir_receta(self, dni: str, matricula: str, medicamentos: list):
+        if dni not in self.__pacientes__:
+            raise PacienteNoExisteError("Error: Paciente no encontrado")
+        if matricula not in self.__medicos__:
+            raise MedicoNoExisteError("Médico no encontrado")
+        if not medicamentos:
+            raise RecetaInvalidaError("Debe incluir medicamentos")
+
+        receta = Receta(self.__pacientes__[dni], self.__medicos__[matricula], medicamentos)
+        self.__historias_clinicas__[dni].agregar_receta(receta)
+        return receta
+
+    def obtener_historia_clinica(self, dni: str):
+        if dni not in self.__historias_clinicas__:
+            raise PacienteNoExisteError("Historia clínica no encontrada")
+        return self.__historias_clinicas__[dni]
+
     def obtener_turnos(self):
-        return f'Los Turnos son: {[str(turno) for turno in self.__turnos__]}'
-    
-    def obtener_receta(self):
-        return f'Las Recetas son: {[str(receta) for receta in self.__recetas__]}'
-    
-    def __str__(self) -> str:
-        turnos_info = f"{len(self.__turnos__)} turno(s)" if self.__turnos__ else "Sin turnos"
-        recetas_info = f"{len(self.__recetas__)} receta(s)" if self.__recetas__ else "Sin recetas"
-    
-        return f"Historia Clínica de {self.__paciente__.__nombre__} - {turnos_info}, {recetas_info}"
+        return list(self.__turnos__)
 
-
+    def obtener_dia_semana_en_espanol(self, fecha_hora: datetime) -> str:
+        dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+        return dias[fecha_hora.weekday()]
